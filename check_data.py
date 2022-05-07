@@ -6,10 +6,11 @@ import numpy as np
 
 def image_check(min_delta, max_delta, min_image_adv, max_image_adv):
     valid = 1.0
-    if min_delta < - args.epsilon:
+    print(min_delta)
+    if min_delta < -0.3:
         print("invalid #1")
         valid -= 2.0
-    elif max_delta > args.epsilon:
+    elif max_delta > 0.3:
         print("invalid #2")
         valid -= 2.0
     elif min_image_adv < 0.0:
@@ -43,6 +44,7 @@ def check_data(X_adv_data, X_data, Y_data):
         if not valid:
             print('not valid adversarial image')
             break
+    print('check finished')
 
 def main():
     #load data
@@ -51,3 +53,8 @@ def main():
     X_data = np.load('./data_attack/mnist_X.npy')
     print("X_data shape: ", X_data.shape)
     Y_data = np.load('./data_attack/mnist_Y.npy')
+
+    check_data(X_adv_data, X_data, Y_data)
+
+if __name__ == '__main__':
+    main()

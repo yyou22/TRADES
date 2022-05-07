@@ -34,6 +34,7 @@ def attack(model, device, X_data, Y_data):
     adv_examples = []
 
     for idx in range(len(Y_data)):
+
         # load original image
         image = np.array(np.expand_dims(X_data[idx], axis=0), dtype=np.float32)
         image = np.array(np.expand_dims(image, axis=0), dtype=np.float32)
@@ -52,7 +53,14 @@ def attack(model, device, X_data, Y_data):
 
         #if the initial prediction is wrong, don't do anything about it
         if out.data.max(1)[1] != y.data:
-             continue
+
+            #detach the tensor from GPU
+            data_ = data.detach().cpu().numpy()
+            data_ = np.reshape(data_, dim)
+            data_ = list(data_)
+            adv_examples.append(data_)
+
+            continue
 
         #calculate the loss
         loss = F.nll_loss(out, target)
