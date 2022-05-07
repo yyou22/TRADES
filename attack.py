@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
+from torch.autograd import Variable
 import numpy as np
 
 #Load TRADES CNN model for MNIST
@@ -28,55 +29,64 @@ def attack(model, device, X_data, Y_data):
 
     #test accuracy
     correct = 0
-    adv_examples = np.empty()
+    adv_examples = np.empty(np.shape(X_data))
 
-    with torch.no_grad():
-        for idx in range(len(Y_data)):
-            # load original image
-            image = np.array(np.expand_dims(X_data[idx], axis=0), dtype=np.float32)
-            image = np.array(np.expand_dims(image, axis=0), dtype=np.float32)
-            # load label
-            label = np.array(Y_data[idx], dtype=np.int64)
+    for idx in range(len(Y_data)):
+        # load original image
+        image = np.array(np.expand_dims(X_data[idx], axis=0), dtype=np.float32)
+        image = np.array(np.expand_dims(image, axis=0), dtype=np.float32)
+        # load label
+        label = np.array([Y_data[idx]], dtype=np.int64)
 
-            # transform to torch.tensor
-            data = torch.from_numpy(image).to(device)
-            target = torch.from_numpy(label).to(device)
+        # transform to torch.tensor
+        data = torch.from_numpy(image).to(device)
+        target = torch.from_numpy(label).to(device)
 
-            X, y = Variable(data, requires_grad=True), Variable(target)
-            # output of model
-            out = model(X)
-            init_pred = out.data.max(1)[1]
+        X, y = Variable(data, requires_grad = True), Variable(target)
 
-            #if the initial prediction is wrong, don't do anything about it
-            if out.data.max(1)[1] != y.data:
-                continue
+        # output of model
+        out = model(X)
+        init_pred = out.data.max(1)[1]
 
-            #calculate the loss
-            loss = F.nll_loss(out, target)
+        #print(out.data.max(1)[1])
 
-            #zero existing gradients
-            model.zero_grad()
+        #if the initial prediction is wrong, don't do anything about it
+        if out.data.max(1)[1] != y.data:
+             continue
 
-            #calculate gradients of model in backward pass
-            loss.backward()
+        #calculate the loss
+        loss = F.nll_loss(out, target)
 
-            #collect data grad
-            data_grad = data.grad.data
+        #zero existing gradients
+        model.zero_grad()
 
-            #call fgsm attack
-            perturbed_data = fgsm_attack(data, epsilon, data_grad)
+        #calculate gradients of model in backward pass
+        loss.backward()
 
-            #re-classify the perturbed image
-            X_ = Variable(perturbed_data)
-            out = model(X_)
+        #print(X.grad) #for debug purporse
 
-            #check new prediction
-            final_pred = out.data.max(1)[1]
+        #collect data grad
+        data_grad = X.grad.data
 
-            if out.data.max(1)[1] == y.data:
+        #call fgsm attack
+        perturbed_data = fgsm_attack(data, epsilon, data_grad)
+
+        #re-classify the perturbed image
+        X_ = Variable(perturbed_data)
+        out = model(X_)
+
+        #print(out.data.max(1)[1])
+
+        #check new prediction
+        final_pred = out.data.max(1)[1]
+
+        if out.data.max(1)[1] == y.data:
             correct += 1
 
-            np.append(adv_examples, perturbed_data)
+        #detach the tensor from GPU
+        perturbed_data_ = perturbed_data.detach().cpu().numpy()
+
+        np.append(adv_examples, perturbed_data_)
 
     #print out test accuracy
     final_acc = correct/float(len(Y_data))
@@ -94,7 +104,7 @@ def main():
     X_data = np.load('./data_attack/mnist_X.npy')
     Y_data = np.load('./data_attack/mnist_Y.npy')
 
-    test(model, device, X_data, Y_data)
+    attack(model, device, X_data, Y_data)
     return
 
 if __name__ == '__main__':
