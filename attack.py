@@ -49,7 +49,7 @@ def attack(model, device, X_data, Y_data):
 
             #if the initial prediction is wrong, don't do anything about it
             if out.data.max(1)[1] != y.data:
-            continue
+                continue
 
             #calculate the loss
             loss = F.nll_loss(out, target)
