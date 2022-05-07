@@ -14,6 +14,7 @@ device = torch.device("cuda")
 
 #Maximum perturbation size for MNIST dataset must be smaller than 0.3
 epsilon = 0.3
+dim = (28, 28)
 
 def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
@@ -29,7 +30,8 @@ def attack(model, device, X_data, Y_data):
 
     #test accuracy
     correct = 0
-    adv_examples = np.empty(np.shape(X_data))
+    #adv_examples = np.empty(np.shape(X_data), dtype=np.float32)
+    adv_examples = []
 
     for idx in range(len(Y_data)):
         # load original image
@@ -48,8 +50,6 @@ def attack(model, device, X_data, Y_data):
         out = model(X)
         init_pred = out.data.max(1)[1]
 
-        #print(out.data.max(1)[1])
-
         #if the initial prediction is wrong, don't do anything about it
         if out.data.max(1)[1] != y.data:
              continue
@@ -63,8 +63,6 @@ def attack(model, device, X_data, Y_data):
         #calculate gradients of model in backward pass
         loss.backward()
 
-        #print(X.grad) #for debug purporse
-
         #collect data grad
         data_grad = X.grad.data
 
@@ -75,8 +73,6 @@ def attack(model, device, X_data, Y_data):
         X_ = Variable(perturbed_data)
         out = model(X_)
 
-        #print(out.data.max(1)[1])
-
         #check new prediction
         final_pred = out.data.max(1)[1]
 
@@ -85,13 +81,17 @@ def attack(model, device, X_data, Y_data):
 
         #detach the tensor from GPU
         perturbed_data_ = perturbed_data.detach().cpu().numpy()
+        perturbed_data_ = np.reshape(perturbed_data_, dim)
+        perturbed_data_ = list(perturbed_data_)
 
-        np.append(adv_examples, perturbed_data_)
+        #np.append(adv_examples, perturbed_data_)
+        adv_examples.append(perturbed_data_)
 
     #print out test accuracy
     final_acc = correct/float(len(Y_data))
     print("Test Accuracy: {} / {} = {}".format(correct, len(Y_data), final_acc))
 
+    adv_examples = np.array(adv_examples)
     np.save('mnist_X_adv', adv_examples)
 
     return
