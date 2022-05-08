@@ -98,7 +98,7 @@ def attack(model, device, X_data, Y_data):
     final_acc = correct/float(len(Y_data))
     print("Test Accuracy: {} / {} = {}".format(correct, len(Y_data), final_acc))
 
-    adv_examples = np.array(adv_examples)
+    adv_examples = np.array(adv_examples, dtype=np.float32)
     np.save('mnist_X_adv', adv_examples)
 
     return
