@@ -34,6 +34,8 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
 def image_check(min_delta, max_delta, min_image_adv, max_image_adv):
     valid = 1.0
+    print(type(min_delta))
+    print(type(args.epsilon))
     if min_delta < - args.epsilon:
         print(min_delta)
         print("invalid #1")
