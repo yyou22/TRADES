@@ -37,7 +37,8 @@ def image_check(min_delta, max_delta, min_image_adv, max_image_adv):
     print(type(min_delta))
     print(type(args.epsilon))
     if min_delta < - args.epsilon:
-        print(min_delta)
+        print("min_delta", min_delta)
+        print("epsilon", args.epsilon)
         print("invalid #1")
         valid -= 2.0
     elif max_delta > args.epsilon:
