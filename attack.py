@@ -18,7 +18,7 @@ dim = (28, 28)
 
 def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
-    sign_data_grad = data_grad.sign()
+    sign_data_grad = torch.sign(data_grad)
     # Create the perturbed image by adjusting each pixel of the input image
     perturbed_image = image + epsilon*sign_data_grad
     # Adding clipping to maintain [0,1] range
@@ -92,7 +92,6 @@ def attack(model, device, X_data, Y_data):
         perturbed_data_ = np.reshape(perturbed_data_, dim)
         perturbed_data_ = list(perturbed_data_)
 
-        #np.append(adv_examples, perturbed_data_)
         adv_examples.append(perturbed_data_)
 
     #print out test accuracy
