@@ -13,13 +13,15 @@ from models.small_cnn import SmallCNN
 device = torch.device("cuda")
 
 #Maximum perturbation size for MNIST dataset must be smaller than 0.3
-epsilon = 0.3
+eps_adjust = 0.000001
+epsilon = 0.3 - eps_adjust
 dim = (28, 28)
 
 def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
     sign_data_grad = torch.sign(data_grad)
     # Create the perturbed image by adjusting each pixel of the input image
+    # print('{0:.64f}'.format(epsilon*sign_data_grad[0][0][10][10]))
     perturbed_image = image + epsilon*sign_data_grad
     # Adding clipping to maintain [0,1] range
     perturbed_image = torch.clamp(perturbed_image, 0, 1)
@@ -91,14 +93,16 @@ def attack(model, device, X_data, Y_data):
         perturbed_data_ = perturbed_data.detach().cpu().numpy()
         perturbed_data_ = np.reshape(perturbed_data_, dim)
         perturbed_data_ = list(perturbed_data_)
+        #print('{0:.64f}'.format((perturbed_data_ - image)[0][0][10][10]))
 
+        #np.append(adv_examples, perturbed_data_)
         adv_examples.append(perturbed_data_)
 
     #print out test accuracy
     final_acc = correct/float(len(Y_data))
     print("Test Accuracy: {} / {} = {}".format(correct, len(Y_data), final_acc))
 
-    adv_examples = np.array(adv_examples, dtype=np.float32)
+    adv_examples = np.array(adv_examples)
     np.save('mnist_X_adv', adv_examples)
 
     return
