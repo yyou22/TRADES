@@ -44,6 +44,7 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.
 
         X_overlay = np.array(np.expand_dims(X_data[idx_overlay], axis=0), dtype=np.float32)
         X_overlay = np.array(np.expand_dims(X_overlay, axis=0), dtype=np.float32)
+        X_overlay = np.ones(np.shape(X_overlay), dtype=np.float32) - X_overlay
         # transform to torch.tensor
         X_overlay = torch.from_numpy(X_overlay).to(device)
 
@@ -74,6 +75,7 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.
 
         image_prev = image_adv
         step1 *= 2
+        step2 *= 2
 
 def attack(model, device, X_data, Y_data):
 
@@ -102,7 +104,7 @@ def attack(model, device, X_data, Y_data):
         init_pred = out.data.max(1)[1]
 
         #if the initial prediction is wrong, don't do anything about it
-        if out.data.max(1)[1] != y.data:
+        if init_pred != y.data:
 
             #detach the tensor from GPU
             data_ = data.detach().cpu().numpy()
@@ -122,7 +124,7 @@ def attack(model, device, X_data, Y_data):
         #check new prediction
         final_pred = out.data.max(1)[1]
 
-        if out.data.max(1)[1] == y.data:
+        if final_pred == y.data:
             correct += 1
         else:
             wrong += 1
