@@ -16,40 +16,32 @@ device = torch.device("cuda")
 eps_adjust = 0.000001
 epsilon = 0.3 - eps_adjust
 dim = (28, 28)
-step1 = 0.001
-step2 = 0.01
-step3 = 0.001
+w = 0.001
+step = 0.01
+num_step = 30
 
-def fgsm_attack(image, epsilon, data_grad):
+def fgsm_attack(image, image_adv, epsilon, step, data_grad):
     # Collect the element-wise sign of the data gradient
     sign_data_grad = torch.sign(data_grad)
     # Create the perturbed image by adjusting each pixel of the input image
     # print('{0:.64f}'.format(epsilon*sign_data_grad[0][0][10][10]))
-    perturbed_image = image + epsilon*sign_data_grad
+    perturbed_image = image_adv - step*sign_data_grad #switched to minor for target attack
     # Adding clipping to maintain [0,1] range
+    perturbed_image = torch.min(torch.max(perturbed_image, image - epsilon), image + epsilon)
     perturbed_image = torch.clamp(perturbed_image, 0, 1)
     # Return the perturbed image
     return perturbed_image
 
-def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1, step2, step3):
+def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, w, step, num_step):
 
-    image_prev = image
-    image_adv = image
+    #generate random noise
+    image_adv = image + w * torch.randn(image.shape).cuda()
 
-    while abs((image_adv-image).min()) < epsilon and abs((image_adv-image).max()) < epsilon:
+    # output of model
+    out = model(image_adv)
+    adv_target = torch.tensor([out.data.topk(2)[1][0][1]]).to(device)
 
-        #select a random image
-        idx_overlay = np.random.randint(0, len(Y_data))
-
-        X_overlay = np.array(np.expand_dims(X_data[idx_overlay], axis=0), dtype=np.float32)
-        X_overlay = np.array(np.expand_dims(X_overlay, axis=0), dtype=np.float32)
-        X_overlay = np.ones(np.shape(X_overlay), dtype=np.float32) - X_overlay
-        # transform to torch.tensor
-        X_overlay = torch.from_numpy(X_overlay).to(device)
-
-        image_adv = (image_prev + step1 * X_overlay) / (1 + step1)
-
-        image_adv = image_adv + step3 * torch.randn(image_adv.shape).cuda()
+    for i in range(num_step):
 
         image_adv_ = Variable(image_adv, requires_grad = True)
 
@@ -57,7 +49,7 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1, s
         out = model(image_adv_)
 
         #calculate the loss
-        loss = F.nll_loss(out, target)
+        loss = F.cross_entropy(out, adv_target)
 
         #zero existing gradients
         model.zero_grad()
@@ -69,14 +61,11 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1, s
         data_grad = image_adv_.grad.data
 
         #call fgsm attack
-        image_adv = fgsm_attack(image_adv, step2, data_grad)
+        image_adv = fgsm_attack(image, image_adv, epsilon, step, data_grad)
 
-        if abs((image_adv-image).min()) > epsilon or abs((image_adv-image).max()) > epsilon:
-            return image_prev
+        step += step
 
-        image_prev = image_adv
-        step1 *= 2
-        step2 *= 2
+    return image_adv
 
 def attack(model, device, X_data, Y_data):
 
@@ -116,10 +105,10 @@ def attack(model, device, X_data, Y_data):
             continue
 
         #calculate the initial loss
-        init_loss = F.nll_loss(out, target)
+        init_loss = F.cross_entropy(out, target)
 
         #call overlay attack
-        perturbed_data = overlay_attack(data, epsilon, target, model, X_data, Y_data, X, y, step1, step2, step3)
+        perturbed_data = overlay_attack(data, epsilon, target, model, X_data, Y_data, X, y, w, step, num_step)
 
         #re-classify the perturbed image
         X_ = Variable(perturbed_data)
