@@ -40,15 +40,19 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.
     while Y_data[idx_overlay] == y.data:
         idx_overlay = np.random.randint(0, len(Y_data))
 
-    while abs((image_adv-image).min()) < epsilon:
+    while abs((image_adv-image).min()) < epsilon and abs((image_adv-image).max()) < epsilon:
 
         X_overlay = np.array(np.expand_dims(X_data[idx_overlay], axis=0), dtype=np.float32)
         X_overlay = np.array(np.expand_dims(X_overlay, axis=0), dtype=np.float32)
+        # transform to torch.tensor
+        X_overlay = torch.from_numpy(X_overlay).to(device)
 
-        image_adv = (image + step1 * X_overlay) / (1 + step1)
+        image_adv = (image_prev + step1 * X_overlay) / (1 + step1)
+
+        image_adv_ = Variable(image_adv, requires_grad = True)
 
         # output of model
-        out = model(image_adv)
+        out = model(image_adv_)
 
         #calculate the loss
         loss = F.nll_loss(out, target)
@@ -60,21 +64,22 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.
         loss.backward()
 
         #collect data grad
-        data_grad = X.grad.data
+        data_grad = image_adv_.grad.data
 
         #call fgsm attack
         image_adv = fgsm_attack(image_adv, step2, data_grad)
 
-        if abs((image_adv-image).min()) > epsilon:
+        if abs((image_adv-image).min()) > epsilon or abs((image_adv-image).max()) > epsilon:
             return image_prev
 
-        image_preb = image_adv
+        image_prev = image_adv
         step1 *= 2
 
 def attack(model, device, X_data, Y_data):
 
     #test accuracy
     correct = 0
+    wrong = 0 #FIXME:for testing
     #adv_examples = np.empty(np.shape(X_data), dtype=np.float32)
     adv_examples = []
 
@@ -119,6 +124,9 @@ def attack(model, device, X_data, Y_data):
 
         if out.data.max(1)[1] == y.data:
             correct += 1
+        else:
+            wrong += 1
+            print("wrong: {} / {}".format(wrong, idx+1))
 
         #detach the tensor from GPU
         perturbed_data_ = perturbed_data.detach().cpu().numpy()
