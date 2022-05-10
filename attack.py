@@ -16,6 +16,8 @@ device = torch.device("cuda")
 eps_adjust = 0.000001
 epsilon = 0.3 - eps_adjust
 dim = (28, 28)
+step1 = 0.001
+step2 = 0.01
 
 def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
@@ -27,6 +29,47 @@ def fgsm_attack(image, epsilon, data_grad):
     perturbed_image = torch.clamp(perturbed_image, 0, 1)
     # Return the perturbed image
     return perturbed_image
+
+def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.001, step2=0.01):
+
+    image_prev = image
+    image_adv = image
+
+    #select a random image
+    idx_overlay = np.random.randint(0, len(Y_data))
+    while Y_data[idx_overlay] == y.data:
+        idx_overlay = np.random.randint(0, len(Y_data))
+
+    while abs((image_adv-image).min()) < epsilon:
+
+        X_overlay = np.array(np.expand_dims(X_data[idx_overlay], axis=0), dtype=np.float32)
+        X_overlay = np.array(np.expand_dims(X_overlay, axis=0), dtype=np.float32)
+
+        image_adv = (image + step1 * X_overlay) / (1 + step1)
+
+        # output of model
+        out = model(image_adv)
+
+        #calculate the loss
+        loss = F.nll_loss(out, target)
+
+        #zero existing gradients
+        model.zero_grad()
+
+        #calculate gradients of model in backward pass
+        loss.backward()
+
+        #collect data grad
+        data_grad = X.grad.data
+
+        #call fgsm attack
+        image_adv = fgsm_attack(image_adv, step2, data_grad)
+
+        if abs((image_adv-image).min()) > epsilon:
+            return image_prev
+
+        image_preb = image_adv
+        step1 *= 2
 
 def attack(model, device, X_data, Y_data):
 
@@ -64,20 +107,8 @@ def attack(model, device, X_data, Y_data):
 
             continue
 
-        #calculate the loss
-        loss = F.nll_loss(out, target)
-
-        #zero existing gradients
-        model.zero_grad()
-
-        #calculate gradients of model in backward pass
-        loss.backward()
-
-        #collect data grad
-        data_grad = X.grad.data
-
         #call fgsm attack
-        perturbed_data = fgsm_attack(data, epsilon, data_grad)
+        perturbed_data = overlay_attack(data, epsilon, target, model, X_data, Y_data, X, y, step1, step2)
 
         #re-classify the perturbed image
         X_ = Variable(perturbed_data)
