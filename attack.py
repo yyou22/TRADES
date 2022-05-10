@@ -18,6 +18,7 @@ epsilon = 0.3 - eps_adjust
 dim = (28, 28)
 step1 = 0.001
 step2 = 0.01
+step3 = 0.001
 
 def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
@@ -30,17 +31,15 @@ def fgsm_attack(image, epsilon, data_grad):
     # Return the perturbed image
     return perturbed_image
 
-def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.001, step2=0.01):
+def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1, step2, step3):
 
     image_prev = image
     image_adv = image
 
-    #select a random image
-    idx_overlay = np.random.randint(0, len(Y_data))
-    while Y_data[idx_overlay] == y.data:
-        idx_overlay = np.random.randint(0, len(Y_data))
-
     while abs((image_adv-image).min()) < epsilon and abs((image_adv-image).max()) < epsilon:
+
+        #select a random image
+        idx_overlay = np.random.randint(0, len(Y_data))
 
         X_overlay = np.array(np.expand_dims(X_data[idx_overlay], axis=0), dtype=np.float32)
         X_overlay = np.array(np.expand_dims(X_overlay, axis=0), dtype=np.float32)
@@ -49,6 +48,8 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step1=0.
         X_overlay = torch.from_numpy(X_overlay).to(device)
 
         image_adv = (image_prev + step1 * X_overlay) / (1 + step1)
+
+        image_adv = image_adv + step3 * torch.randn(image_adv.shape).cuda()
 
         image_adv_ = Variable(image_adv, requires_grad = True)
 
@@ -114,8 +115,11 @@ def attack(model, device, X_data, Y_data):
 
             continue
 
-        #call fgsm attack
-        perturbed_data = overlay_attack(data, epsilon, target, model, X_data, Y_data, X, y, step1, step2)
+        #calculate the initial loss
+        init_loss = F.nll_loss(out, target)
+
+        #call overlay attack
+        perturbed_data = overlay_attack(data, epsilon, target, model, X_data, Y_data, X, y, step1, step2, step3)
 
         #re-classify the perturbed image
         X_ = Variable(perturbed_data)
@@ -144,7 +148,7 @@ def attack(model, device, X_data, Y_data):
     print("Test Accuracy: {} / {} = {}".format(correct, len(Y_data), final_acc))
 
     adv_examples = np.array(adv_examples)
-    np.save('mnist_X_adv', adv_examples)
+    np.save('./data_attack/mnist_X_adv', adv_examples)
 
     return
 
