@@ -17,9 +17,10 @@ eps_adjust = 0.00001
 epsilon = 0.3 - eps_adjust
 dim = (28, 28)
 w = 0.05
-step = epsilon #0.005
-num_step = 20
+step = epsilon
+num_step = 50
 torch.manual_seed(1)
+start_idx = 0
 
 def margin_loss(logits,y):
     logit_org = logits.gather(1,y.view(-1,1))
