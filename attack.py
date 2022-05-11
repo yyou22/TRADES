@@ -17,7 +17,7 @@ eps_adjust = 0.00001
 epsilon = 0.3 - eps_adjust
 dim = (28, 28)
 w = 0.05
-step = 0.005
+step = epsilon #0.005
 num_step = 20
 torch.manual_seed(1)
 
@@ -95,9 +95,6 @@ def overlay_attack(image, epsilon, target, model, X, y, step=step, w=w):
         cur_pred = out.data.max(1)
         if cur_pred[1] != y.data:
             return image_adv
-
-        step *= 5
-        w /= 5
 
     return image_adv
 
