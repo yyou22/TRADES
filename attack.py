@@ -13,12 +13,12 @@ from models.small_cnn import SmallCNN
 device = torch.device("cuda")
 
 #Maximum perturbation size for MNIST dataset must be smaller than 0.3
-eps_adjust = 0.000001
+eps_adjust = 0.00001
 epsilon = 0.3 - eps_adjust
 dim = (28, 28)
-w = 0.001
+w = 0.05
 step = 0.005
-num_step = 10
+num_step = 20
 torch.manual_seed(1)
 
 def margin_loss(logits,y):
@@ -38,23 +38,40 @@ def fgsm_attack(image, image_adv, epsilon, step, data_grad):
 
     # Adding clipping to maintain [0,1] range
     perturbed_image = torch.min(torch.max(perturbed_image, image - epsilon), image + epsilon)
-    perturbed_image = torch.clamp(perturbed_image, 0, 1)
+    perturbed_image = torch.clamp(perturbed_image, 0.0, 1.0)
 
     # Return the perturbed image
     return perturbed_image
 
-def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step=step):
+def overlay_attack(image, epsilon, target, model, X, y, step=step, w=w):
+
+    og_out = model(image)
 
     #generate random noise
     random_noise = torch.FloatTensor(*image.shape).uniform_(-epsilon, epsilon).to(device)
     image_adv = image + random_noise
-    image_adv = image_adv + w * torch.randn(image.shape).cuda()
 
     # output of model
     out = model(image_adv)
-    adv_target = torch.tensor([out.data.topk(2)[1][0][1]]).to(device)
+
+    #generate random noise
+    random_noise = torch.FloatTensor(*image.shape).uniform_(-epsilon, epsilon).to(device)
+    image_adv = image + random_noise
+
+    #adv_target = torch.tensor([out.data.topk(2)[1][0][1]]).to(device)
 
     for i in range(num_step):
+
+        image_adv = image_adv + w * torch.randn(image.shape).cuda()
+        image_adv = torch.min(torch.max(image_adv, image - epsilon), image + epsilon)
+        image_adv = torch.clamp(image_adv, 0.0, 1.0)
+        out = model(image_adv)
+
+        cur_pred = out.data.max(1)
+        if cur_pred[1] != y.data:
+            return image_adv
+
+        adv_target = torch.tensor([out.data.topk(2)[1][0][1]]).to(device)
 
         image_adv_ = Variable(image_adv, requires_grad = True)
 
@@ -74,7 +91,13 @@ def overlay_attack(image, epsilon, target, model, X_data, Y_data, X, y, step=ste
 
         image_adv = fgsm_attack(image, image_adv, epsilon, step, data_grad)
 
-        step *= 3
+        out = model(image_adv)
+        cur_pred = out.data.max(1)
+        if cur_pred[1] != y.data:
+            return image_adv
+
+        step *= 5
+        w /= 5
 
     return image_adv
 
@@ -116,7 +139,9 @@ def attack(model, device, X_data, Y_data):
             continue
 
         #call overlay attack
-        perturbed_data = overlay_attack(data, epsilon, target, model, X_data, Y_data, X, y)
+        perturbed_data = overlay_attack(data, epsilon, target, model, X, y)
+        #print(perturbed_data.min())
+        #print(perturbed_data - data)
 
         #re-classify the perturbed image
         X_ = Variable(perturbed_data)
