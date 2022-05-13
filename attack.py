@@ -6,6 +6,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import numpy as np
+import pickle
 
 #Load TRADES CNN model for MNIST
 from models.small_cnn import SmallCNN
@@ -18,8 +19,8 @@ epsilon = 0.3 - eps_adjust
 dim = (28, 28)
 w = 0.05
 step = epsilon
-num_step = 50
-torch.manual_seed(1)
+num_step = 20
+torch.manual_seed(5)
 start_idx = 0
 
 def margin_loss(logits,y):
@@ -35,7 +36,7 @@ def fgsm_attack(image, image_adv, epsilon, step, data_grad):
 
     # Create the perturbed image by adjusting each pixel of the input image
     # print('{0:.64f}'.format(epsilon*sign_data_grad[0][0][10][10]))
-    perturbed_image = image_adv - step*sign_data_grad #switched to minus for target attack
+    perturbed_image = image_adv + step*sign_data_grad #switched to minus for target attack
 
     # Adding clipping to maintain [0,1] range
     perturbed_image = torch.min(torch.max(perturbed_image, image - epsilon), image + epsilon)
@@ -46,40 +47,20 @@ def fgsm_attack(image, image_adv, epsilon, step, data_grad):
 
 def overlay_attack(image, epsilon, target, model, X, y, step=step, w=w):
 
-    og_out = model(image)
-
     #generate random noise
-    random_noise = torch.FloatTensor(*image.shape).uniform_(-epsilon, epsilon).to(device)
-    image_adv = image + random_noise
+    #random_noise = torch.FloatTensor(*image.shape).uniform_(-epsilon, epsilon).to(device)
+    #image_adv = image + random_noise
 
-    # output of model
-    out = model(image_adv)
-
-    #generate random noise
-    random_noise = torch.FloatTensor(*image.shape).uniform_(-epsilon, epsilon).to(device)
-    image_adv = image + random_noise
-
-    #adv_target = torch.tensor([out.data.topk(2)[1][0][1]]).to(device)
+    image_adv = image
 
     for i in range(num_step):
-
-        image_adv = image_adv + w * torch.randn(image.shape).cuda()
-        image_adv = torch.min(torch.max(image_adv, image - epsilon), image + epsilon)
-        image_adv = torch.clamp(image_adv, 0.0, 1.0)
-        out = model(image_adv)
-
-        cur_pred = out.data.max(1)
-        if cur_pred[1] != y.data:
-            return image_adv
-
-        adv_target = torch.tensor([out.data.topk(2)[1][0][1]]).to(device)
 
         image_adv_ = Variable(image_adv, requires_grad = True)
 
         # output of model
         out = model(image_adv_)
 
-        loss = margin_loss(out, adv_target)
+        loss = margin_loss(out, target)
 
         #zero existing gradients
         model.zero_grad()
@@ -97,6 +78,15 @@ def overlay_attack(image, epsilon, target, model, X, y, step=step, w=w):
         if cur_pred[1] != y.data:
             return image_adv
 
+        image_adv = image_adv + w * torch.randn(image.shape).cuda()
+        image_adv = torch.min(torch.max(image_adv, image - epsilon), image + epsilon)
+        image_adv = torch.clamp(image_adv, 0.0, 1.0)
+        out = model(image_adv)
+
+        cur_pred = out.data.max(1)
+        if cur_pred[1] != y.data:
+            return image_adv
+
     return image_adv
 
 def attack(model, device, X_data, Y_data):
@@ -107,7 +97,7 @@ def attack(model, device, X_data, Y_data):
     #adv_examples = np.empty(np.shape(X_data), dtype=np.float32)
     adv_examples = []
 
-    for idx in range(len(Y_data)):
+    for idx in range(start_idx, len(Y_data)):
 
         # load original image
         image = np.array(np.expand_dims(X_data[idx], axis=0), dtype=np.float32)
@@ -162,6 +152,14 @@ def attack(model, device, X_data, Y_data):
 
         #np.append(adv_examples, perturbed_data_)
         adv_examples.append(perturbed_data_)
+
+        #checkpoints
+        #Saving the objects:
+        with open('idx.pkl', 'wb') as f:
+            pickle.dump([idx, correct, wrong], f)
+        adv_examples = np.array(adv_examples)
+        np.save('./mnist_X_adv_checkpoint', adv_examples)
+        adv_examples = adv_examples.tolist()
 
     #print out test accuracy
     final_acc = correct/float(len(Y_data))
