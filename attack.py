@@ -17,7 +17,7 @@ device = torch.device("cuda")
 eps_adjust = 0.00001
 epsilon = 0.3 - eps_adjust
 dim = (28, 28)
-w = 0.05
+w = 0.01
 step = epsilon
 num_step = 20
 torch.manual_seed(5)
@@ -81,15 +81,12 @@ def overlay_attack(image, epsilon, target, model, X, y, step=step, w=w):
         image_adv = image_adv + w * torch.randn(image.shape).cuda()
         image_adv = torch.min(torch.max(image_adv, image - epsilon), image + epsilon)
         image_adv = torch.clamp(image_adv, 0.0, 1.0)
-        out = model(image_adv)
-
-        cur_pred = out.data.max(1)
-        if cur_pred[1] != y.data:
-            return image_adv
 
     return image_adv
 
 def attack(model, device, X_data, Y_data):
+
+    model.eval()
 
     #test accuracy
     correct = 0
