@@ -7,16 +7,28 @@ from torchvision import datasets, transforms
 from torch.autograd import Variable
 import numpy as np
 import pickle
-
+import argparse
 #Load TRADES CNN model for MNIST
 from models.small_cnn import SmallCNN
+from models.wideresnet import WideResNet
+
+parser = argparse.ArgumentParser(description='TRADES Attack')
+parser.add_argument('--data', default='mnist',help='mnist/cifar')
+
+args = parser.parse_args()
 
 device = torch.device("cuda")
 
 #Maximum perturbation size for MNIST dataset must be smaller than 0.3
 eps_adjust = 0.00001
-epsilon = 0.3 - eps_adjust
-dim = (28, 28)
+if args.data == 'mnist':
+    epsilon = 0.3 - eps_adjust
+else:
+    epsilon = 0.031 - eps_adjust
+if args.data == 'mnist':
+    dim = (28, 28)
+else:
+    dim = (32, 32, 3)
 w = 0.01
 step = epsilon
 num_step = 20
@@ -45,7 +57,7 @@ def fgsm_attack(image, image_adv, epsilon, step, data_grad):
     # Return the perturbed image
     return perturbed_image
 
-def overlay_attack(image, epsilon, target, model, X, y, step=step, w=w):
+def attack_(image, epsilon, target, model, X, y, step=step, w=w):
 
     #generate random noise
     #random_noise = torch.FloatTensor(*image.shape).uniform_(-epsilon, epsilon).to(device)
@@ -98,7 +110,10 @@ def attack(model, device, X_data, Y_data):
 
         # load original image
         image = np.array(np.expand_dims(X_data[idx], axis=0), dtype=np.float32)
-        image = np.array(np.expand_dims(image, axis=0), dtype=np.float32)
+        if args.data == 'mnist':
+            image = np.array(np.expand_dims(image, axis=0), dtype=np.float32)
+        else:
+            image = np.transpose(image, (0, 3, 1, 2))
         # load label
         label = np.array([Y_data[idx]], dtype=np.int64)
 
@@ -117,16 +132,21 @@ def attack(model, device, X_data, Y_data):
 
             #detach the tensor from GPU
             data_ = data.detach().cpu().numpy()
-            data_ = np.reshape(data_, dim)
+            if args.data == 'mnist':
+                data_ = np.reshape(data_, dim)
+            else:
+                data_ = np.transpose(data_, (0, 2, 3, 1))
+                data_ = np.reshape(data_, dim)
             data_ = list(data_)
             adv_examples.append(data_)
 
             continue
 
         #call overlay attack
-        perturbed_data = overlay_attack(data, epsilon, target, model, X, y)
+        perturbed_data = attack_(data, epsilon, target, model, X, y)
         #print(perturbed_data.min())
-        #print(perturbed_data - data)
+        #print((perturbed_data - data).min())
+        #print((perturbed_data - data).max())
 
         #re-classify the perturbed image
         X_ = Variable(perturbed_data)
@@ -143,8 +163,13 @@ def attack(model, device, X_data, Y_data):
 
         #detach the tensor from GPU
         perturbed_data_ = perturbed_data.detach().cpu().numpy()
-        perturbed_data_ = np.reshape(perturbed_data_, dim)
+        if args.data == 'mnist':
+            perturbed_data_ = np.reshape(perturbed_data_, dim)
+        else:
+            perturbed_data_ = np.transpose(perturbed_data_, (0, 2, 3, 1))
+            perturbed_data_ = np.reshape(perturbed_data_, dim)
         perturbed_data_ = list(perturbed_data_)
+
         #print('{0:.64f}'.format((perturbed_data_ - image)[0][0][10][10]))
 
         #np.append(adv_examples, perturbed_data_)
@@ -155,7 +180,10 @@ def attack(model, device, X_data, Y_data):
         with open('idx.pkl', 'wb') as f:
             pickle.dump([idx, correct, wrong], f)
         adv_examples = np.array(adv_examples)
-        np.save('./mnist_X_adv_checkpoint', adv_examples)
+        if args.data == 'mnist':
+            np.save('./mnist_X_adv_checkpoint', adv_examples)
+        else:
+            np.save('./cifar10_X_adv_checkpoint', adv_examples)
         adv_examples = adv_examples.tolist()
 
     #print out test accuracy
@@ -163,17 +191,29 @@ def attack(model, device, X_data, Y_data):
     print("Test Accuracy: {} / {} = {}".format(correct, len(Y_data), final_acc))
 
     adv_examples = np.array(adv_examples)
-    np.save('./data_attack/mnist_X_adv', adv_examples)
+    if args.data == 'mnist':
+        np.save('./data_attack/mnist_X_adv', adv_examples)
+    else:
+        np.save('./data_attack/cifar10_X_adv', adv_examples)
 
     return
 
 def main():
-    model = SmallCNN().to(device)
-    model.load_state_dict(torch.load('./checkpoints/model_mnist_smallcnn.pt'))
+
+    if args.data == 'mnist':
+        model = SmallCNN().to(device)
+        model.load_state_dict(torch.load('./checkpoints/model_mnist_smallcnn.pt'))
+    else:
+        model = WideResNet().to(device)
+        model.load_state_dict(torch.load('./checkpoints/model_cifar_wrn.pt'))
 
     #load data
-    X_data = np.load('./data_attack/mnist_X.npy')
-    Y_data = np.load('./data_attack/mnist_Y.npy')
+    if args.data == 'mnist':
+        X_data = np.load('./data_attack/mnist_X.npy')
+        Y_data = np.load('./data_attack/mnist_Y.npy')
+    else:
+        X_data = np.load('./data_attack/cifar10_X.npy')
+        Y_data = np.load('./data_attack/cifar10_Y.npy')
 
     attack(model, device, X_data, Y_data)
     return
