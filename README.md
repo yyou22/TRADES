@@ -1,3 +1,19 @@
+# Attack on TRADES
+
+TRADES is a state-of-the-art method for training an adversarially robust deep neural networks. In this repository, we design our own evasion attack to fool TRADES on both the MNIST and CIFAR10 datasets.
+
+Author: Yuzhe You
+
+## Methodology
+
+In this repository, we design our own evasion attack to fool TRADES, the state-of-the-art method for training an adversarially robust deep neural networks. Our attack utilizes a gradient-based approach with an iterative method that includes randomization in each step. For each entry in the dataset, we start with the original image and conduct a FGSM attack that takes a step with size ε in the direction of the sign of the gradient. The adversarial image is immediately returned if the model produces a wrong prediction, and if not, a layer of randomized noise is applied to the current image with w = 0.01. The algorithm then enters the next iteration and conducts another FGSM attack based on the newly calculated gradient of the altered image, and repeats the process. If the perturbation applied by both the randomized noise and the FGSM attack result in an alteration from the original image that is larger than ε required for the specific dataset, the adversarial image is truncated such that its differences from the original image range in (−ε, ε). If after a maximum number of 20 iterations and the adversarial image is still unable to produce a model misclassification, the image is returned and the attack moves on to the subsequent image in the test dataset.
+
+## Results
+
+Our attack achieves a robust accuracy of 95.1% on the MNIST dataset. Our attack achieves a robust accuracy of 54.65% on the CIFAR-10 dataset.
+
+Below you can find the original documentation from the official TRADES github repository. Fore more information, please visit https://github.com/yaodongyu/TRADES
+
 # TRADES (**TR**adeoff-inspired **A**dversarial **DE**fense via **S**urrogate-loss minimization) 
 
 This is the official code for the [ICML'19 paper](https://arxiv.org/pdf/1901.08573.pdf) "Theoretically Principled Trade-off between Robustness and Accuracy" by [Hongyang Zhang](http://www.cs.cmu.edu/~hongyanz/) (CMU, TTIC), [Yaodong Yu](https://github.com/yaodongyu) (University of Virginia), Jiantao Jiao (UC Berkeley), Eric P. Xing (CMU & Petuum Inc.), Laurent El Ghaoui (UC Berkeley), and Michael I. Jordan (UC Berkeley).
