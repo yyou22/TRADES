@@ -1,8 +1,8 @@
 # Attack on TRADES
 
-Author: Yuzhe You
-
 TRADES is a state-of-the-art method for training an adversarially robust deep neural networks. In this repository, we design our own evasion attack to fool TRADES on both the MNIST and CIFAR10 datasets.
+
+Author: Yuzhe You
 
 ## Methodology
 
