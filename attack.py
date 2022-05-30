@@ -183,7 +183,7 @@ def attack(model, device, X_data, Y_data):
         if args.data == 'mnist':
             np.save('./mnist_X_adv_checkpoint', adv_examples)
         else:
-            np.save('./cifar_X_adv_checkpoint', adv_examples)
+            np.save('./cifar10_X_adv_checkpoint', adv_examples)
         adv_examples = adv_examples.tolist()
 
     #print out test accuracy
@@ -194,7 +194,7 @@ def attack(model, device, X_data, Y_data):
     if args.data == 'mnist':
         np.save('./data_attack/mnist_X_adv', adv_examples)
     else:
-        np.save('./data_attack/cifar_X_adv', adv_examples)
+        np.save('./data_attack/cifar10_X_adv', adv_examples)
 
     return
 
@@ -202,7 +202,7 @@ def main():
     
     if args.data == 'mnist':
         model = SmallCNN().to(device)
-        model.load_state_dgict(torch.load('./checkpoints/model_mnist_smallcnn.pt'))
+        model.load_state_dict(torch.load('./checkpoints/model_mnist_smallcnn.pt'))
     else:
         model = WideResNet().to(device)
         model.load_state_dict(torch.load('./checkpoints/model_cifar_wrn.pt'))
